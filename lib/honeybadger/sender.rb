@@ -27,7 +27,7 @@ module Honeybadger
 
     # Public: Sends the notice data off to Honeybadger for processing.
     #
-    # notice - The notice data to be sent (Hash or JSON string)
+    # notice - The notice to be sent (Notice, Hash or JSON string)
     #
     # Returns error id from successful response
     def send_to_honeybadger(notice)
@@ -36,7 +36,8 @@ module Honeybadger
         return nil
       end
 
-      return nil unless api_key_ok?
+      local_api_key = notice.respond_to?(:api_key) ? notice.api_key : api_key
+      return nil unless api_key_ok?(local_api_key)
 
       data = notice.is_a?(String) ? notice : notice.to_json
 
@@ -44,6 +45,7 @@ module Honeybadger
                    client.post do |p|
                      p.url NOTICES_URI
                      p.body = data
+                     p.headers.merge!({ 'X-API-Key' => local_api_key})
                    end
                  rescue *HTTP_ERRORS => e
                    log(:error, "Unable to contact the Honeybadger server. HTTP Error=#{e}")
@@ -100,11 +102,12 @@ module Honeybadger
 
     private
 
-    def api_key_ok?
-      if api_key.nil? || api_key == ''
+    def api_key_ok?(api_key = api_key)
+      unless api_key =~ /\S/
         log(:error, "API key not found.")
-        return nil
+        return false
       end
+
       true
     end
 
